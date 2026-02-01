@@ -18,11 +18,17 @@ const (
 	DefaultModel = "vosk-model-en-us-0.22-lgraph"
 )
 
-func GetModel(log zerolog.Logger) error {
+func getModel(log zerolog.Logger) (string, error) {
 	logger = log.With().Str("component", "model_downloader").Logger()
-	downloadUrl := fmt.Sprintf("https://alphacephei.com/vosk/models/%s.zip", DefaultModel)
+	modelPath := filepath.Join("models", DefaultModel)
 
-	return downloadAndUnzip(downloadUrl, "models")
+	if _, err := os.Stat(modelPath); err == nil {
+		logger.Info().Str("path", modelPath).Msg("Model already exists, skipping download")
+		return modelPath, nil
+	}
+
+	downloadUrl := fmt.Sprintf("https://alphacephei.com/vosk/models/%s.zip", DefaultModel)
+	return modelPath, downloadAndUnzip(downloadUrl, "models")
 }
 
 func downloadAndUnzip(url, destDir string) error {
