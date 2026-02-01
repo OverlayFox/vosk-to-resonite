@@ -2,8 +2,7 @@ package vosk
 
 import (
 	"encoding/json"
-	"math"
-	"strconv"
+	"regexp"
 	"strings"
 
 	vosk "github.com/alphacep/vosk-api/go"
@@ -56,57 +55,21 @@ func (v *Vosk) AcceptAudio(data []byte) string {
 
 		// logger.Debug().Interface("result", result).Msg("Final recognition result")
 
-		var splitResult []string
+		var parsedText string
 		if text, ok := result["text"].(string); ok && text != "" {
-			parsedText := numwords.ParseString(text)
-			logger.Debug().Str("parsed", parsedText).Msg("Parsed text")
-			splitResult = strings.Split(parsedText, " ")
-		}
-		if len(splitResult) <= 0 {
-			return ""
+			parsedText = numwords.ParseString(text)
 		}
 
-		// Extract numbers, handling decimals
-		index := 0
-		isDecimal := false
-		numberList := map[int][]int{}
-		for _, word := range splitResult {
-			num, err := strconv.Atoi(word)
-			if err == nil {
-				numberList[index] = append(numberList[index], num)
-				if !isDecimal {
-					index++
-				}
-				continue
-			}
-			if word == "point" {
-				isDecimal = true
-				index--
-			} else {
-				if isDecimal {
-					index++
-				}
-				isDecimal = false
-			}
-		}
+		var re = regexp.MustCompile(`(?i)(grow|shrink)(?:\W+(?:\w+\W+){0,6}?)(\d+(?:\s+point\s+\d+|\.\d+)?)`)
+		matches := re.FindAllStringSubmatch(parsedText, -1)
 
-		// Combine integer and decimal parts
-		var finalNumbers []float64
-		for _, nums := range numberList {
-			if len(nums) == 1 {
-				finalNumbers = append(finalNumbers, float64(nums[0]))
-				continue
-			}
-			intPart := nums[0]
-			decimalPart := 0.0
-			for i, n := range nums[1:] {
-				decimalPart += float64(n) / math.Pow10(i+1)
-			}
-			finalNumbers = append(finalNumbers, float64(intPart)+decimalPart)
-		}
+		for _, match := range matches {
+			trigger := match[1]
+			numberRaw := match[2]
 
-		logger.Info().Interface("finalNumbers", finalNumbers).Msg("Final Numbers")
+			cleanNumber := strings.ReplaceAll(numberRaw, " point ", ".")
+			logger.Debug().Str("trigger", trigger).Str("numberRaw", numberRaw).Str("cleanNumber", cleanNumber).Msg("Parsed command")
+		}
 	}
-
 	return ""
 }
