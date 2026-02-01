@@ -3,6 +3,7 @@ package resonite
 type Command struct {
 	Type  CommandType
 	Value float64
+	Name  string
 }
 
 type CommandType string
