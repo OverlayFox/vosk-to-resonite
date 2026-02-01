@@ -55,18 +55,19 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 	// Only process final results (when state returns 1)
 	commands := make([]resonite.Command, 0)
 	if state == 1 {
+		v.logger.Debug().Msg("Processing final recognition result")
+
 		var result map[string]any
 		jsonStr := v.recognizer.Result()
 		if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 			return nil
 		}
 
-		logger.Debug().Interface("result", result).Msg("Final recognition result")
-
 		var parsedText string
 		if text, ok := result["text"].(string); ok && text != "" {
 			parsedText = numwords.ParseString(text)
 		}
+		v.logger.Debug().Str("recognized_text", parsedText).Msg("Final recognized speech")
 
 		// define triggers
 		triggerPattern := fmt.Sprintf(`(?i)\b(%s)\b`, strings.Join(resonite.StringToCommandTypeList, "|"))
@@ -127,9 +128,7 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 				Value: extractedNum,
 				Unit:  extractedUnit,
 			}
-
 			commands = append(commands, command)
-			logger.Info().Interface("command", command).Msg("Extracted command from speech")
 		}
 	}
 

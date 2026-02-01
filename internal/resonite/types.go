@@ -26,7 +26,22 @@ func init() {
 }
 
 func (c Command) ToCommandString() string {
-	return fmt.Sprintf("%s-%.6f-%s", c.Type, c.Value, c.Unit)
+	switch c.Type {
+	case CommandTypeUndefined:
+		return ""
+	case CommandTypeGrow, CommandTypeShrink:
+		if c.Value == 0 {
+			return ""
+		}
+
+		if c.Unit == CommandUnitTimes {
+			c.Unit = CommandUnitPercent
+			c.Value = c.Value * 100
+		}
+
+		return fmt.Sprintf("%s-%.6f-%s", c.Type, c.Value, c.Unit)
+	}
+	return ""
 }
 
 type CommandType string
@@ -35,6 +50,7 @@ const (
 	CommandTypeUndefined CommandType = "undefined"
 	CommandTypeGrow      CommandType = "grow"
 	CommandTypeShrink    CommandType = "shrink"
+	CommandTypeSelect    CommandType = "select"
 )
 
 var (
@@ -43,6 +59,8 @@ var (
 		"grow":    CommandTypeGrow,
 		"shrink":  CommandTypeShrink,
 		"shrinks": CommandTypeShrink,
+		"select":  CommandTypeSelect,
+		"selects": CommandTypeSelect,
 	}
 	StringToCommandTypeList = []string{}
 )
@@ -57,11 +75,10 @@ func StringToCommandType(s string) CommandType {
 type CommandUnit string
 
 const (
-	CommandUnitUndefined   CommandUnit = "undefined"
+	CommandUnitPercent     CommandUnit = "percent"
 	CommandUnitCentimeters CommandUnit = "centimeters"
 	CommandUnitMeters      CommandUnit = "meters"
 	CommandUnitInches      CommandUnit = "inches"
-	CommandUnitPercent     CommandUnit = "percent"
 	CommandUnitTimes       CommandUnit = "times"
 )
 
@@ -76,7 +93,7 @@ var (
 		"percent":     CommandUnitPercent,
 		"per cent":    CommandUnitPercent,
 		"times":       CommandUnitTimes,
-		"undefined":   CommandUnitPercent,
+		"time":        CommandUnitTimes,
 	}
 	StringToCommandUnitList = []string{}
 )
@@ -85,7 +102,7 @@ func StringToCommandUnit(s string) CommandUnit {
 	if unit, ok := StringToCommandUnitMap[strings.ToLower(s)]; ok {
 		return unit
 	}
-	return CommandUnitUndefined
+	return CommandUnitPercent
 }
 
 var (

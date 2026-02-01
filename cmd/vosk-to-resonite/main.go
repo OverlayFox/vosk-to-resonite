@@ -60,7 +60,7 @@ func main() {
 
 		// Process when we have enough data (about 512ms worth)
 		if len(buffer) >= 8192 {
-			voskInstance.AcceptAudio(buffer)
+			_ = voskInstance.AcceptAudio(buffer)
 			buffer = buffer[:0]
 		}
 	}
