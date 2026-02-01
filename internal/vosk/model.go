@@ -15,7 +15,7 @@ import (
 var logger zerolog.Logger
 
 const (
-	DefaultModel = "vosk-model-en-us-0.22-lgraph"
+	DefaultModel = "vosk-model-en-us-0.22"
 )
 
 func getModel(log zerolog.Logger) (string, error) {

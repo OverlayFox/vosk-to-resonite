@@ -9,7 +9,9 @@ require (
 )
 
 require (
+	github.com/divan/num2words v1.0.3 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.19 // indirect
+	github.com/rodaine/numwords v0.0.0-20200910203654-405f4a455f79 // indirect
 	golang.org/x/sys v0.12.0 // indirect
 )
