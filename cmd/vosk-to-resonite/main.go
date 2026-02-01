@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"fmt"
 	"os"
+	"os/signal"
 	"strconv"
 	"strings"
+	"syscall"
 
 	"github.com/OverlayFox/vosk-to-resonite/internal/mic"
 	"github.com/OverlayFox/vosk-to-resonite/internal/resonite"
@@ -21,10 +23,16 @@ func main() {
 	if err != nil {
 		logger.Panic().Err(err).Msg("Failed to initialize Vosk")
 	}
+	defer voskInstance.Close()
+
+	// Microphone Setup
 	microphone, err := mic.NewMicrophone(logger)
 	if err != nil {
 		logger.Panic().Err(err).Msg("Failed to initialize microphone")
 	}
+	defer microphone.Close()
+
+	// Start Resonite WebSocket server
 	resoniteWebSocket, err := resonite.NewWebSocketServer(logger, resonite.WebSocketServerConfig{Port: 8080})
 	if err != nil {
 		logger.Panic().Err(err).Msg("Failed to start Resonite WebSocket server")
@@ -57,23 +65,31 @@ func main() {
 	// Start capturing audio from the selected device
 	micChan, err := microphone.StartCapture(devices[selectedIndex])
 	if err != nil {
-		panic(err)
+		logger.Panic().Err(err).Msg("Failed to start audio capture")
 	}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
 	buffer := make([]byte, 0, 8192) // 512ms buffer at 16kHz 16-bit mono
 	for {
-		data := <-micChan
-		buffer = append(buffer, data...)
+		select {
+		case data := <-micChan:
+			buffer = append(buffer, data...)
 
-		// Process when we have enough data (about 512ms worth)
-		if len(buffer) >= 8192 {
-			commands := voskInstance.AcceptAudio(buffer)
-			if len(commands) > 0 {
-				for _, cmd := range commands {
-					resoniteWebSocket.Write(cmd)
+			// Process when we have enough data (about 512ms worth)
+			if len(buffer) >= 8192 {
+				commands := voskInstance.AcceptAudio(buffer)
+				if len(commands) > 0 {
+					for _, cmd := range commands {
+						resoniteWebSocket.Write(cmd)
+					}
 				}
+				buffer = buffer[:0]
 			}
-			buffer = buffer[:0]
+		case sig := <-quit:
+			logger.Info().Str("signal", sig.String()).Msg("Received termination signal, exiting...")
+			return
 		}
 	}
 }

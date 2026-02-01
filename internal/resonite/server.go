@@ -2,6 +2,7 @@ package resonite
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -133,7 +134,9 @@ func (s *WebSocketServer) Start() error {
 		defer s.wg.Done()
 		err := http.Serve(s.listener, handler) // will block until error occurs
 		if err != nil {
-			s.logger.Error().Err(err).Msg("HTTP server error")
+			if !errors.Is(err, net.ErrClosed) {
+				s.logger.Error().Err(err).Msg("HTTP server error")
+			}
 		}
 	}()
 

@@ -17,7 +17,7 @@ import (
 func track(logger zerolog.Logger, name string) func() {
 	start := time.Now()
 	return func() {
-		logger.Info().Str("duration", time.Since(start).String()).Msgf("%s took", name)
+		logger.Debug().Str("duration", time.Since(start).String()).Str("operation", name).Msg("Completed operation")
 	}
 }
 
@@ -63,7 +63,7 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 	// Only process final results (when state returns 1)
 	commands := make([]resonite.Command, 0)
 	if state == 1 {
-		defer track(v.logger, "Vosk AcceptAudio")()
+		defer track(v.logger, "Vosk vocal recognition parsing")()
 		v.logger.Debug().Msg("Processing final recognition result")
 
 		var result map[string]any
@@ -142,4 +142,15 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 	}
 
 	return commands
+}
+
+func (v *Vosk) Close() {
+	v.logger.Info().Msg("Releasing Vosk resources")
+
+	if v.recognizer != nil {
+		v.recognizer.Free()
+		v.recognizer = nil
+	}
+
+	v.logger.Info().Msg("Vosk resources released")
 }
