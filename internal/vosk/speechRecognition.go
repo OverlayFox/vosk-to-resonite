@@ -3,7 +3,6 @@ package vosk
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -12,6 +11,10 @@ import (
 	vosk "github.com/alphacep/vosk-api/go"
 	"github.com/rodaine/numwords"
 	"github.com/rs/zerolog"
+)
+
+const (
+	MaxDistanceNumberToTrigger = 6 // max number of words between trigger and number
 )
 
 type Vosk struct {
@@ -65,69 +68,64 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 			parsedText = numwords.ParseString(text)
 		}
 
-		triggers := []string{string(resonite.CommandTypeGrow), string(resonite.CommandTypeShrink)}
-		triggerPattern := fmt.Sprintf(`(?i)\b(%s)\b`, strings.Join(triggers, "|"))
+		// define triggers
+		triggerPattern := fmt.Sprintf(`(?i)\b(%s)\b`, strings.Join(resonite.StringToCommandTypeList, "|"))
 		reTrigger := regexp.MustCompile(triggerPattern)
 
-		names := []string{"neo", "overlay", "bronze", "loki"}
-		namePattern := fmt.Sprintf(`(?i)\b(%s)\b`, strings.Join(names, "|"))
-		reName := regexp.MustCompile(namePattern)
-
-		reNumber := regexp.MustCompile(`(?i)(\d+(?:\s+point\s+\d+|\.\d+)?)`)
+		// define number pattern
+		var safeExprs []string
+		for _, expr := range resonite.Expressions {
+			safeExprs = append(safeExprs, fmt.Sprintf(`\b%s\b`, regexp.QuoteMeta(expr)))
+		}
+		customPattern := strings.Join(safeExprs, "|")
+		finalPattern := fmt.Sprintf(`(?i)(%s|\d+(?:\s+point\s+\d+|\.\d+)?)`, customPattern)
+		reNumber := regexp.MustCompile(finalPattern)
 
 		triggerMatches := reTrigger.FindAllStringIndex(parsedText, -1)
-
 		for _, tLoc := range triggerMatches {
 			triggerStart, triggerEnd := tLoc[0], tLoc[1]
-			triggerWord := parsedText[triggerStart:triggerEnd]
+			triggerWord := resonite.StringToCommandType(parsedText[triggerStart:triggerEnd])
+			if triggerWord == resonite.CommandTypeUndefined {
+				continue
+			}
 
 			textAfter := parsedText[triggerEnd:]
 			numMatch := reNumber.FindStringIndex(textAfter)
 
 			var extractedNum float64
+			var extractedUnit resonite.CommandUnit
 			if numMatch != nil {
 				gapText := textAfter[:numMatch[0]]
 				wordCount := len(strings.Fields(gapText))
 
-				if wordCount <= 6 {
+				if wordCount <= MaxDistanceNumberToTrigger {
 					rawNum := textAfter[numMatch[0]:numMatch[1]]
 					numberStr := strings.ReplaceAll(rawNum, " point ", ".")
 					num, err := strconv.ParseFloat(numberStr, 64)
 					if err == nil {
 						extractedNum = num
 					} else {
-						v.logger.Error().Err(err).Str("rawNum", rawNum).Str("numberStr", numberStr).Msg("Failed to parse extracted number")
+						var ok bool
+						extractedNum, ok = resonite.ExpressionToPercent(rawNum)
+						extractedUnit = resonite.CommandUnitPercent
+						if !ok {
+							v.logger.Warn().Str("number_str", rawNum).Msg("Failed to parse number from recognized speech")
+							continue
+						}
+					}
+
+					// extract the word after the number as unit
+					wordsAfterNumber := strings.Fields(textAfter[numMatch[1]:])
+					if len(wordsAfterNumber) > 0 {
+						extractedUnit = resonite.StringToCommandUnit(wordsAfterNumber[0])
 					}
 				}
 			}
 
-			nameMatches := reName.FindAllStringIndex(parsedText, -1)
-			closestName := ""
-			shortestDitance := math.MaxInt64
-
-			for _, nLoc := range nameMatches {
-				nameStart, nameEnd := nLoc[0], nLoc[1]
-				nameStr := parsedText[nameStart:nameEnd]
-
-				var dist int
-				if nameEnd < triggerStart {
-					dist = triggerStart - nameEnd // name is before trigger
-				} else if nameStart > triggerEnd {
-					dist = nameStart - triggerEnd // name is after trigger
-				} else {
-					dist = 0 // overlapping, should not happen
-				}
-
-				if dist < shortestDitance {
-					shortestDitance = dist
-					closestName = nameStr
-				}
-			}
-
 			command := resonite.Command{
-				Type:  resonite.CommandType(strings.ToLower(triggerWord)),
+				Type:  triggerWord,
 				Value: extractedNum,
-				Name:  strings.ToLower(closestName),
+				Unit:  extractedUnit,
 			}
 
 			commands = append(commands, command)
