@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/OverlayFox/vosk-to-resonite/internal/mic"
+	"github.com/OverlayFox/vosk-to-resonite/internal/resonite"
 	"github.com/OverlayFox/vosk-to-resonite/internal/vosk"
 	"github.com/rs/zerolog"
 )
@@ -18,12 +19,18 @@ func main() {
 	// Initialize Vosk and Microphone
 	voskInstance, err := vosk.NewVosk(logger)
 	if err != nil {
-		panic(err)
+		logger.Panic().Err(err).Msg("Failed to initialize Vosk")
 	}
 	microphone, err := mic.NewMicrophone(logger)
 	if err != nil {
-		panic(err)
+		logger.Panic().Err(err).Msg("Failed to initialize microphone")
 	}
+	resoniteWebSocket, err := resonite.NewWebSocketServer(logger, resonite.WebSocketServerConfig{Port: 8080})
+	if err != nil {
+		logger.Panic().Err(err).Msg("Failed to start Resonite WebSocket server")
+	}
+	resoniteWebSocket.Start()
+	defer resoniteWebSocket.Close()
 
 	// List available audio input devices
 	devices, err := microphone.ListCaptureDevices()
@@ -60,7 +67,12 @@ func main() {
 
 		// Process when we have enough data (about 512ms worth)
 		if len(buffer) >= 8192 {
-			_ = voskInstance.AcceptAudio(buffer)
+			commands := voskInstance.AcceptAudio(buffer)
+			if len(commands) > 0 {
+				for _, cmd := range commands {
+					resoniteWebSocket.Write(cmd)
+				}
+			}
 			buffer = buffer[:0]
 		}
 	}

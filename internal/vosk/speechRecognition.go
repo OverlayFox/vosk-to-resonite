@@ -6,12 +6,20 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/OverlayFox/vosk-to-resonite/internal/resonite"
 	vosk "github.com/alphacep/vosk-api/go"
 	"github.com/rodaine/numwords"
 	"github.com/rs/zerolog"
 )
+
+func track(logger zerolog.Logger, name string) func() {
+	start := time.Now()
+	return func() {
+		logger.Info().Str("duration", time.Since(start).String()).Msgf("%s took", name)
+	}
+}
 
 const (
 	MaxDistanceNumberToTrigger = 6 // max number of words between trigger and number
@@ -55,6 +63,7 @@ func (v *Vosk) AcceptAudio(data []byte) []resonite.Command {
 	// Only process final results (when state returns 1)
 	commands := make([]resonite.Command, 0)
 	if state == 1 {
+		defer track(v.logger, "Vosk AcceptAudio")()
 		v.logger.Debug().Msg("Processing final recognition result")
 
 		var result map[string]any

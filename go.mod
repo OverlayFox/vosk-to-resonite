@@ -5,6 +5,7 @@ go 1.23.2
 require (
 	github.com/alphacep/vosk-api/go v0.3.50
 	github.com/gen2brain/malgo v0.11.24
+	github.com/gorilla/websocket v1.5.3
 	github.com/rodaine/numwords v0.0.0-20200910203654-405f4a455f79
 	github.com/rs/zerolog v1.34.0
 )
