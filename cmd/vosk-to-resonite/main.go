@@ -9,7 +9,6 @@ import (
 
 	"github.com/OverlayFox/vosk-to-resonite/internal/mic"
 	"github.com/OverlayFox/vosk-to-resonite/internal/vosk"
-	"github.com/rodaine/numwords"
 	"github.com/rs/zerolog"
 )
 
@@ -61,17 +60,7 @@ func main() {
 
 		// Process when we have enough data (about 512ms worth)
 		if len(buffer) >= 8192 {
-			result := voskInstance.AcceptAudio(buffer)
-			if result != "" {
-				splitResult := strings.Split(result, " ")
-				for _, word := range splitResult {
-					if num, err := numwords.ParseInt(word); err == nil {
-						logger.Info().Str("original", word).Int("number", num).Msg("Converted words to number")
-					} else {
-						logger.Info().Str("word", word).Msg("Non-numeric word recognized")
-					}
-				}
-			}
+			voskInstance.AcceptAudio(buffer)
 			buffer = buffer[:0]
 		}
 	}
